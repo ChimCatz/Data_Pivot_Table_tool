@@ -1,0 +1,22 @@
+# python
+__pycache__/
+*.pyc
+
+# build files
+build/
+dist/
+
+# installer / executables
+*.exe
+*.pkg
+*.msi
+
+# logs
+*.log
+
+# vscode
+.vscode/
+
+# datasets (optional if heavy)
+*.csv
+*.xlsx
