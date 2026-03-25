@@ -1,0 +1,3 @@
+Data Pivot Table Tool is a lightweight desktop analytics application built in Python (PySide6 + Pandas).
+
+It allows analysts to import large CRM CSV datasets, apply value-based filtering, perform proportional database count adjustments, and generate structured pivot-style distribution reports. The tool supports session saving/loading for repeatable reporting workflows and is packaged as a standalone executable for easy deployment.
