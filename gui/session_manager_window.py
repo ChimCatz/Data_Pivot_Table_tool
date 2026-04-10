@@ -4,14 +4,18 @@ from PySide6.QtWidgets import (
     QPushButton,
     QListWidget,
     QInputDialog,
-    QMessageBox
+    QMessageBox,
+    QLabel
 )
 
 from engine.session_manager import (
     list_sessions,
     delete_session,
-    rename_session
+    rename_session,
+    session_exists,
+    normalize_session_name
 )
+from gui.styles import WINDOW_STYLE, button_style
 
 
 class SessionManagerWindow(QWidget):
@@ -21,14 +25,21 @@ class SessionManagerWindow(QWidget):
 
         self.setWindowTitle("Manage Sessions")
         self.setFixedSize(350, 400)
+        self.setStyleSheet(WINDOW_STYLE)
 
         layout = QVBoxLayout()
+
+        title = QLabel("Saved Sessions")
+        title.setStyleSheet("font-size:12pt; font-weight:bold;")
+        layout.addWidget(title)
 
         self.list_widget = QListWidget()
         layout.addWidget(self.list_widget)
 
         self.rename_btn = QPushButton("Rename")
         self.delete_btn = QPushButton("Delete")
+        self.rename_btn.setStyleSheet(button_style("warning"))
+        self.delete_btn.setStyleSheet(button_style("danger"))
 
         layout.addWidget(self.rename_btn)
         layout.addWidget(self.delete_btn)
@@ -43,9 +54,14 @@ class SessionManagerWindow(QWidget):
     def load_sessions(self):
 
         self.list_widget.clear()
+        sessions = list_sessions()
 
-        for s in list_sessions():
-            self.list_widget.addItem(s)
+        for session_name in sessions:
+            self.list_widget.addItem(session_name)
+
+        has_sessions = bool(sessions)
+        self.rename_btn.setEnabled(has_sessions)
+        self.delete_btn.setEnabled(has_sessions)
 
     def rename(self):
 
@@ -62,8 +78,18 @@ class SessionManagerWindow(QWidget):
             "New Name:"
         )
 
-        if ok and new:
-            rename_session(old, new)
+        new_name = normalize_session_name(new)
+
+        if ok and new_name:
+            if new_name != old and session_exists(new_name):
+                QMessageBox.warning(
+                    self,
+                    "Session Exists",
+                    f"Session '{new_name}' already exists."
+                )
+                return
+
+            rename_session(old, new_name)
             self.load_sessions()
 
     def delete(self):

@@ -1,41 +1,55 @@
+import math
+
+
 def scale_summary(summary_table, target_total):
 
     df = summary_table.copy()
 
-    original_total = df["Count"].sum()
+    original_total = int(df["Count"].sum())
 
-    if original_total == 0:
+    if original_total == 0 or target_total <= 0:
         return df
 
-    growth_mode = target_total > original_total
+    if target_total == original_total:
+        return df
 
-    # proportional exact values
-    df["Exact"] = df["Count"] / original_total * target_total
+    category_count = len(df)
 
-    df["Scaled"] = df["Exact"].astype(int)
+    if target_total < category_count:
+        target_total = category_count
 
-    # ⭐ force minimum growth for small categories
-    if growth_mode:
-        mask = (df["Count"] == 1) & (df["Scaled"] < 2)
-        df.loc[mask, "Scaled"] = 2
+    remaining_total = target_total - category_count
+    original_counts = df["Count"].astype(float)
 
-    # recompute remainder
-    remainder = target_total - df["Scaled"].sum()
+    adjustment_ratio = abs(target_total - original_total) / original_total
+    exponent = max(0.82, 1 - (adjustment_ratio * 0.25))
+    weights = original_counts.pow(exponent)
 
-    df["Decimal"] = df["Exact"] - df["Scaled"]
+    if weights.sum() == 0:
+        weights = original_counts.replace(0, 1)
 
-    df = df.sort_values("Decimal", ascending=False)
+    df["Scaled"] = 1
+    df["Exact"] = 1 + (weights / weights.sum() * remaining_total)
+    df["Scaled"] += (df["Exact"] - 1).apply(math.floor).astype(int)
+    df["RemainderWeight"] = df["Exact"] - df["Scaled"]
 
-    i = 0
+    remainder = target_total - int(df["Scaled"].sum())
+
     while remainder > 0:
-        df.iloc[i % len(df), df.columns.get_loc("Scaled")] += 1
+        idx = df["RemainderWeight"].idxmax()
+        df.loc[idx, "Scaled"] += 1
+        df.loc[idx, "RemainderWeight"] -= 1
         remainder -= 1
-        i += 1
 
-    df = df.sort_index()
+    while remainder < 0:
+        eligible = df[df["Scaled"] > 1]
+        if eligible.empty:
+            break
+        idx = eligible["RemainderWeight"].idxmin()
+        df.loc[idx, "Scaled"] -= 1
+        df.loc[idx, "RemainderWeight"] += 1
+        remainder += 1
 
-    df["Count"] = df["Scaled"]
+    df["Count"] = df["Scaled"].astype(int)
 
-    df = df.drop(columns=["Exact", "Scaled", "Decimal"])
-
-    return df
+    return df.drop(columns=["Scaled", "Exact", "RemainderWeight"])

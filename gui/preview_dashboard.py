@@ -1,3 +1,6 @@
+from datetime import datetime
+
+import pandas as pd
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -7,31 +10,36 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QFileDialog,
-    QInputDialog
+    QInputDialog,
+    QMessageBox
 )
+
+from engine.adjuster import scale_summary
+from engine.aggregator import build_summary
 from engine.session_manager import (
     save_session,
     load_session,
-    list_sessions
+    list_sessions,
+    session_exists,
+    normalize_session_name
 )
-from datetime import datetime
-import pandas as pd
 from gui.session_manager_window import SessionManagerWindow
-from engine.aggregator import build_summary
-from engine.adjuster import scale_summary
+from gui.styles import WINDOW_STYLE, button_style
 
 
 class PreviewDashboard(QWidget):
 
-    def __init__(self, df, mapping):
+    def __init__(self, df, mapping, source_df=None):
         super().__init__()
 
-        self.df = df
+        self.df = df.copy()
+        self.source_df = source_df.copy() if source_df is not None else df.copy()
         self.mapping = mapping
         self.adjusted_total = None
 
         self.setWindowTitle("Analytics Report")
         self.resize(1200, 650)
+        self.setStyleSheet(WINDOW_STYLE)
 
         main_layout = QVBoxLayout()
 
@@ -43,23 +51,30 @@ class PreviewDashboard(QWidget):
 
         btn_row = QHBoxLayout()
 
-        self.adjust_btn = QPushButton("Adjust Totals")
-        self.adjust_btn.clicked.connect(self.adjust_totals)
+        self.manage_btn = QPushButton("Manage Sessions")
+        self.manage_btn.setStyleSheet(button_style("primary"))
+        self.manage_btn.clicked.connect(self.open_session_manager)
 
-        self.export_csv_btn = QPushButton("Export CSV")
-        self.export_csv_btn.clicked.connect(self.export_csv)
         self.save_btn = QPushButton("Save Session")
+        self.save_btn.setStyleSheet(button_style("success"))
         self.save_btn.clicked.connect(self.save_current_session)
 
         self.load_btn = QPushButton("Load Session")
+        self.load_btn.setStyleSheet(button_style("accent"))
         self.load_btn.clicked.connect(self.load_existing_session)
-        self.manage_btn = QPushButton("Manage Sessions")
-        self.manage_btn.clicked.connect(self.open_session_manager)
 
-        btn_row.addWidget(self.manage_btn)  
+        self.adjust_btn = QPushButton("Adjust Totals")
+        self.adjust_btn.setStyleSheet(button_style("warning"))
+        self.adjust_btn.clicked.connect(self.adjust_totals)
+
+        self.export_csv_btn = QPushButton("Export CSV")
+        self.export_csv_btn.setStyleSheet(button_style("primary"))
+        self.export_csv_btn.clicked.connect(self.export_csv)
+
+        btn_row.addWidget(self.manage_btn)
         btn_row.addWidget(self.save_btn)
         btn_row.addWidget(self.load_btn)
-
+        btn_row.addStretch()
         btn_row.addWidget(self.adjust_btn)
         btn_row.addWidget(self.export_csv_btn)
 
@@ -74,7 +89,6 @@ class PreviewDashboard(QWidget):
 
     def build_dashboard(self):
 
-        # clear old widgets
         while self.report_layout.count():
             child = self.report_layout.takeAt(0)
             if child.widget():
@@ -96,9 +110,9 @@ class PreviewDashboard(QWidget):
         )
 
         colors = {
-            "Country": "#1F618D",
-            "Industry": "#117A65",
-            "Job Level": "#7D6608"
+            "Country": "#7FB3D5",
+            "Industry": "#73C6B6",
+            "Job Level": "#F0C674"
         }
 
         for field, data in summary.items():
@@ -114,11 +128,15 @@ class PreviewDashboard(QWidget):
             table_df = table_df.reset_index(drop=True)
             table_df.insert(0, "No", table_df.index + 1)
 
+            container = QWidget()
+            container.setStyleSheet(
+                "background-color:#FFFFFF; border:1px solid #D8E2EC; border-radius:10px;"
+            )
             container_layout = QVBoxLayout()
 
-            title = QLabel(f"{field}")
+            title = QLabel(field)
             title.setStyleSheet(
-                "font-size:12pt; font-weight:bold;"
+                "font-size:12pt; font-weight:bold; padding:4px;"
             )
             container_layout.addWidget(title)
 
@@ -129,23 +147,26 @@ class PreviewDashboard(QWidget):
                 ["No", field, "Count"]
             )
 
-            color = colors.get(field, "#1F618D")
+            color = colors.get(field, "#A9CCE3")
 
             table.setStyleSheet(f"""
                 QHeaderView::section {{
                     background-color: {color};
-                    color: white;
+                    color: #1F2D3D;
                     font-weight: bold;
-                    padding: 3px;
-                    font-size:9pt;
+                    padding: 4px;
+                    font-size: 9pt;
+                    border: none;
                 }}
                 QTableWidget {{
-                    font-size:8pt;
-                    gridline-color:#D0D3D4;
+                    font-size: 8.5pt;
+                    gridline-color: #E5ECF3;
+                    background-color: #FFFFFF;
+                    border: none;
                 }}
             """)
 
-            table.verticalHeader().setDefaultSectionSize(18)
+            table.verticalHeader().setDefaultSectionSize(20)
             table.horizontalHeader().setStretchLastSection(True)
 
             for row in range(table_df.shape[0]):
@@ -160,22 +181,27 @@ class PreviewDashboard(QWidget):
 
             table.resizeColumnsToContents()
 
-            container = QWidget()
-            container.setLayout(container_layout)
             container_layout.addWidget(table)
+            container.setLayout(container_layout)
 
             self.report_layout.addWidget(container)
 
     def adjust_totals(self):
 
+        summary = build_summary(self.df, self.mapping)
+        minimum_total = max(
+            len(data["table"])
+            for data in summary.values()
+        )
+
         new_total, ok = QInputDialog.getInt(
             self,
             "Adjust Total",
-            "Enter new total:",
+            f"Enter new total (minimum {minimum_total}):",
             value=self.adjusted_total
             if self.adjusted_total
             else len(self.df),
-            minValue=1
+            minValue=minimum_total
         )
 
         if ok:
@@ -220,7 +246,6 @@ class PreviewDashboard(QWidget):
             tables.append((field, df_field))
 
         combined = pd.DataFrame()
-
         totals = {}
 
         for field, df_field in tables:
@@ -239,7 +264,7 @@ class PreviewDashboard(QWidget):
         )
 
         combined.to_csv(file, index=False)
-    
+
     def save_current_session(self):
 
         name, ok = QInputDialog.getText(
@@ -248,12 +273,12 @@ class PreviewDashboard(QWidget):
             "Enter session name:"
         )
 
-        if not ok or not name:
+        session_name = normalize_session_name(name)
+
+        if not ok or not session_name:
             return
 
         filters = {}
-
-        summary = build_summary(self.df, self.mapping)
 
         for field in self.mapping:
             filters[field] = (
@@ -271,13 +296,32 @@ class PreviewDashboard(QWidget):
             "filters": filters
         }
 
-        save_session(name, data)
+        if session_exists(session_name):
+            confirm = QMessageBox.question(
+                self,
+                "Overwrite Session",
+                f"Session '{session_name}' already exists. Overwrite it?"
+            )
+            if confirm != QMessageBox.Yes:
+                return
+
+        saved_name = save_session(session_name, data)
+        QMessageBox.information(
+            self,
+            "Session Saved",
+            f"Session '{saved_name}' was saved successfully."
+        )
 
     def load_existing_session(self):
 
         sessions = list_sessions()
 
         if not sessions:
+            QMessageBox.information(
+                self,
+                "No Sessions",
+                "There are no saved sessions yet."
+            )
             return
 
         name, ok = QInputDialog.getItem(
@@ -296,12 +340,14 @@ class PreviewDashboard(QWidget):
 
         self.adjusted_total = data.get("adjusted_total")
 
-        # apply filters
-        df = self.df
+        df = self.source_df.copy()
 
-        for field, values in data["filters"].items():
+        for field, values in data.get("filters", {}).items():
 
-            col = self.mapping[field]
+            col = data.get("mapping", {}).get(field, self.mapping.get(field))
+
+            if not col or col not in df.columns:
+                continue
 
             df = df[
                 df[col]
@@ -311,7 +357,6 @@ class PreviewDashboard(QWidget):
             ]
 
         self.df = df
-
         self.build_dashboard()
 
     def open_session_manager(self):

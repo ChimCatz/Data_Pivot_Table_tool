@@ -13,6 +13,7 @@ from engine.data_loader import load_csv
 from gui.preview_dashboard import PreviewDashboard
 from gui.column_mapper import ColumnMapper
 from gui.data_filter import DataFilterWindow
+from gui.styles import WINDOW_STYLE, button_style
 from config import APP_NAME, BUILD_VERSION, CREATOR
 
 
@@ -23,6 +24,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle(APP_NAME)
         self.setFixedSize(520, 220)
+        self.setStyleSheet(WINDOW_STYLE)
 
         title = QLabel(APP_NAME)
         title.setStyleSheet("font-size:14pt; font-weight:bold;")
@@ -36,6 +38,7 @@ class MainWindow(QMainWindow):
         self.file_location_label.setWordWrap(True)
 
         self.import_btn = QPushButton("Import CSV")
+        self.import_btn.setStyleSheet(button_style("primary"))
         self.import_btn.clicked.connect(self.import_csv)
 
         layout = QVBoxLayout()
@@ -99,7 +102,11 @@ class MainWindow(QMainWindow):
         )
         self.filter_window.show()
 
-    def open_dashboard(self, df, mapping):
+    def open_dashboard(self, df, mapping, source_df=None):
 
-        self.preview_window = PreviewDashboard(df, mapping)
+        self.preview_window = PreviewDashboard(
+            df,
+            mapping,
+            source_df=source_df if source_df is not None else df
+        )
         self.preview_window.show()

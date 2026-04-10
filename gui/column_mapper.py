@@ -3,6 +3,8 @@ from PySide6.QtWidgets import (
     QComboBox, QPushButton, QMessageBox
 )
 
+from gui.styles import WINDOW_STYLE, button_style
+
 
 REQUIRED_FIELDS = ["Country", "Job Level", "Industry"]
 
@@ -17,6 +19,7 @@ class ColumnMapper(QWidget):
 
         self.setWindowTitle("Column Mapping")
         self.resize(300, 220)
+        self.setStyleSheet(WINDOW_STYLE)
 
         layout = QVBoxLayout()
         layout.setSpacing(6)
@@ -44,6 +47,7 @@ class ColumnMapper(QWidget):
             self.dropdowns[field] = combo
 
         self.confirm_btn = QPushButton("Confirm Mapping")
+        self.confirm_btn.setStyleSheet(button_style("success"))
         self.confirm_btn.clicked.connect(self.confirm_mapping)
 
         layout.addWidget(self.confirm_btn)
@@ -73,7 +77,6 @@ class ColumnMapper(QWidget):
             ]
         }
 
-        # Priority 1 → exact match
         for col in columns:
             col_clean = col.lower().strip()
 
@@ -81,7 +84,6 @@ class ColumnMapper(QWidget):
                 if col_clean == keyword:
                     return col
 
-        # Priority 2 → startswith match
         for col in columns:
             col_clean = col.lower().strip()
 
@@ -89,7 +91,6 @@ class ColumnMapper(QWidget):
                 if col_clean.startswith(keyword):
                     return col
 
-        # Priority 3 → contains whole word
         for col in columns:
             words = col.lower().replace("/", " ").split()
 

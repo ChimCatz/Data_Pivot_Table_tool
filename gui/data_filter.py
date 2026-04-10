@@ -11,6 +11,8 @@ from PySide6.QtWidgets import (
 
 from PySide6.QtCore import Qt
 
+from gui.styles import WINDOW_STYLE, button_style
+
 
 COUNTRY_PRESETS = {
     "SEA only": {
@@ -37,6 +39,17 @@ COUNTRY_PRESETS = {
     },
 }
 
+DECISION_MAKER_VALUES = {
+    "C-Level",
+    "Director",
+    "Manager",
+    "Vice President",
+}
+
+
+def normalize_values(values):
+    return {value.casefold().strip() for value in values}
+
 
 class DataFilterWindow(QWidget):
 
@@ -48,7 +61,8 @@ class DataFilterWindow(QWidget):
         self.proceed_callback = proceed_callback
 
         self.setWindowTitle("Filter Data")
-        self.setFixedSize(760, 420)
+        self.setFixedSize(780, 470)
+        self.setStyleSheet(WINDOW_STYLE)
 
         main_layout = QVBoxLayout()
         main_layout.setSpacing(6)
@@ -77,9 +91,7 @@ class DataFilterWindow(QWidget):
                 .unique()
             )
 
-            values = sorted(values)
-
-            for val in values:
+            for val in sorted(values, key=str.casefold):
                 item = QListWidgetItem(val)
                 item.setCheckState(Qt.Checked)
                 list_widget.addItem(item)
@@ -93,12 +105,23 @@ class DataFilterWindow(QWidget):
             if field == "Country":
                 for preset_name in COUNTRY_PRESETS:
                     preset_btn = QPushButton(preset_name)
-                    preset_btn.setMaximumHeight(24)
+                    preset_btn.setMinimumHeight(32)
+                    preset_btn.setStyleSheet(button_style("primary"))
                     preset_btn.clicked.connect(
                         lambda checked=False, lw=list_widget, preset=preset_name:
-                        self.apply_country_preset(lw, preset)
+                        self.apply_named_preset(lw, COUNTRY_PRESETS[preset])
                     )
                     header_layout.addWidget(preset_btn)
+
+            if field == "Job Level":
+                preset_btn = QPushButton("Decision Makers")
+                preset_btn.setMinimumHeight(32)
+                preset_btn.setStyleSheet(button_style("warning"))
+                preset_btn.clicked.connect(
+                    lambda checked=False, lw=list_widget:
+                    self.apply_named_preset(lw, DECISION_MAKER_VALUES)
+                )
+                header_layout.addWidget(preset_btn)
 
             header_layout.addStretch()
             tab_layout.addLayout(header_layout)
@@ -108,6 +131,8 @@ class DataFilterWindow(QWidget):
 
             select_all = QPushButton("Select All")
             unselect_all = QPushButton("Unselect All")
+            select_all.setStyleSheet(button_style("success"))
+            unselect_all.setStyleSheet(button_style("accent"))
 
             btn_layout.addWidget(select_all)
             btn_layout.addWidget(unselect_all)
@@ -130,7 +155,7 @@ class DataFilterWindow(QWidget):
         main_layout.addWidget(self.tabs)
 
         self.apply_btn = QPushButton("Apply Filter")
-        self.apply_btn.setStyleSheet("font-weight:bold; padding:6px;")
+        self.apply_btn.setStyleSheet(button_style("primary"))
         self.apply_btn.clicked.connect(self.apply_filter)
 
         main_layout.addWidget(self.apply_btn)
@@ -145,15 +170,15 @@ class DataFilterWindow(QWidget):
                 Qt.Checked if state else Qt.Unchecked
             )
 
-    def apply_country_preset(self, list_widget, preset_name):
+    def apply_named_preset(self, list_widget, allowed_values):
 
-        allowed_countries = COUNTRY_PRESETS[preset_name]
+        normalized_allowed = normalize_values(allowed_values)
 
         for i in range(list_widget.count()):
             item = list_widget.item(i)
             item.setCheckState(
                 Qt.Checked
-                if item.text() in allowed_countries
+                if item.text().casefold().strip() in normalized_allowed
                 else Qt.Unchecked
             )
 
@@ -179,5 +204,5 @@ class DataFilterWindow(QWidget):
                 .isin(allowed)
             ]
 
-        self.proceed_callback(filtered_df, self.mapping)
+        self.proceed_callback(filtered_df, self.mapping, self.df)
         self.close()
