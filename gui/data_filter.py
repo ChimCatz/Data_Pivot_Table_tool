@@ -12,6 +12,32 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 
 
+COUNTRY_PRESETS = {
+    "SEA only": {
+        "Indonesia",
+        "Philippines",
+        "Thailand",
+        "Singapore",
+        "Malaysia",
+        "Vietnam",
+    },
+    "AUNZ only": {
+        "Australia",
+        "New Zealand",
+    },
+    "APAC (SEA + AUNZ)": {
+        "Indonesia",
+        "Philippines",
+        "Thailand",
+        "Singapore",
+        "Malaysia",
+        "Vietnam",
+        "Australia",
+        "New Zealand",
+    },
+}
+
+
 class DataFilterWindow(QWidget):
 
     def __init__(self, df, mapping, proceed_callback):
@@ -22,7 +48,7 @@ class DataFilterWindow(QWidget):
         self.proceed_callback = proceed_callback
 
         self.setWindowTitle("Filter Data")
-        self.setFixedSize(420, 420)
+        self.setFixedSize(760, 420)
 
         main_layout = QVBoxLayout()
         main_layout.setSpacing(6)
@@ -41,10 +67,6 @@ class DataFilterWindow(QWidget):
             tab_layout = QVBoxLayout()
             tab_layout.setSpacing(5)
 
-            label = QLabel(field)
-            label.setStyleSheet("font-weight:bold;")
-            tab_layout.addWidget(label)
-
             list_widget = QListWidget()
 
             values = (
@@ -62,9 +84,26 @@ class DataFilterWindow(QWidget):
                 item.setCheckState(Qt.Checked)
                 list_widget.addItem(item)
 
+            header_layout = QHBoxLayout()
+
+            label = QLabel(field)
+            label.setStyleSheet("font-weight:bold;")
+            header_layout.addWidget(label)
+
+            if field == "Country":
+                for preset_name in COUNTRY_PRESETS:
+                    preset_btn = QPushButton(preset_name)
+                    preset_btn.setMaximumHeight(24)
+                    preset_btn.clicked.connect(
+                        lambda checked=False, lw=list_widget, preset=preset_name:
+                        self.apply_country_preset(lw, preset)
+                    )
+                    header_layout.addWidget(preset_btn)
+
+            header_layout.addStretch()
+            tab_layout.addLayout(header_layout)
             tab_layout.addWidget(list_widget)
 
-            # Buttons row
             btn_layout = QHBoxLayout()
 
             select_all = QPushButton("Select All")
@@ -104,6 +143,18 @@ class DataFilterWindow(QWidget):
             item = list_widget.item(i)
             item.setCheckState(
                 Qt.Checked if state else Qt.Unchecked
+            )
+
+    def apply_country_preset(self, list_widget, preset_name):
+
+        allowed_countries = COUNTRY_PRESETS[preset_name]
+
+        for i in range(list_widget.count()):
+            item = list_widget.item(i)
+            item.setCheckState(
+                Qt.Checked
+                if item.text() in allowed_countries
+                else Qt.Unchecked
             )
 
     def apply_filter(self):
