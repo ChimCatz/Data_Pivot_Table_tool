@@ -1,6 +1,7 @@
 from datetime import datetime
 
 import pandas as pd
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -13,7 +14,9 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QMessageBox
 )
+from PySide6.QtCore import Qt
 
+from config import APP_ICON_PATH
 from engine.adjuster import scale_summary
 from engine.aggregator import build_summary
 from engine.session_manager import (
@@ -29,30 +32,67 @@ from gui.styles import WINDOW_STYLE, button_style
 
 class PreviewDashboard(QWidget):
 
-    def __init__(self, df, mapping, source_df=None):
+    def __init__(
+        self,
+        df,
+        mapping,
+        source_df=None,
+        selected_filters=None,
+        back_to_import_callback=None,
+        back_to_mapping_callback=None,
+        back_to_filter_callback=None
+    ):
         super().__init__()
 
         self.df = df.copy()
         self.source_df = source_df.copy() if source_df is not None else df.copy()
         self.mapping = mapping
         self.adjusted_total = None
+        self.selected_filters = selected_filters or {}
+        self.back_to_import_callback = back_to_import_callback
+        self.back_to_mapping_callback = back_to_mapping_callback
+        self.back_to_filter_callback = back_to_filter_callback
+        self.on_close_callback = None
 
         self.setWindowTitle("Analytics Report")
         self.resize(1200, 650)
+        self.setMaximumHeight(650)
         self.setStyleSheet(WINDOW_STYLE)
+        if APP_ICON_PATH.exists():
+            self.setWindowIcon(QIcon(str(APP_ICON_PATH)))
 
         main_layout = QVBoxLayout()
+
+        header_row = QHBoxLayout()
 
         self.total_label = QLabel("")
         self.total_label.setStyleSheet(
             "font-size:14pt; font-weight:bold;"
         )
-        main_layout.addWidget(self.total_label)
+        header_row.addWidget(self.total_label)
+        header_row.addStretch()
+
+        self.back_to_import_btn = QPushButton("Back to Import")
+        self.back_to_import_btn.setStyleSheet(button_style("nav_import"))
+        self.back_to_import_btn.clicked.connect(self.go_back_to_import)
+        header_row.addWidget(self.back_to_import_btn)
+
+        self.back_to_mapping_btn = QPushButton("Back to Mapping")
+        self.back_to_mapping_btn.setStyleSheet(button_style("nav_mapping"))
+        self.back_to_mapping_btn.clicked.connect(self.go_back_to_mapping)
+        header_row.addWidget(self.back_to_mapping_btn)
+
+        self.back_to_filter_btn = QPushButton("Back to Filter")
+        self.back_to_filter_btn.setStyleSheet(button_style("nav_filter"))
+        self.back_to_filter_btn.clicked.connect(self.go_back_to_filter)
+        header_row.addWidget(self.back_to_filter_btn)
+
+        main_layout.addLayout(header_row)
 
         btn_row = QHBoxLayout()
 
         self.manage_btn = QPushButton("Manage Sessions")
-        self.manage_btn.setStyleSheet(button_style("primary"))
+        self.manage_btn.setStyleSheet(button_style("neutral"))
         self.manage_btn.clicked.connect(self.open_session_manager)
 
         self.save_btn = QPushButton("Save Session")
@@ -60,7 +100,7 @@ class PreviewDashboard(QWidget):
         self.save_btn.clicked.connect(self.save_current_session)
 
         self.load_btn = QPushButton("Load Session")
-        self.load_btn.setStyleSheet(button_style("accent"))
+        self.load_btn.setStyleSheet(button_style("info"))
         self.load_btn.clicked.connect(self.load_existing_session)
 
         self.adjust_btn = QPushButton("Adjust Totals")
@@ -68,7 +108,7 @@ class PreviewDashboard(QWidget):
         self.adjust_btn.clicked.connect(self.adjust_totals)
 
         self.export_csv_btn = QPushButton("Export CSV")
-        self.export_csv_btn.setStyleSheet(button_style("primary"))
+        self.export_csv_btn.setStyleSheet(button_style("export"))
         self.export_csv_btn.clicked.connect(self.export_csv)
 
         btn_row.addWidget(self.manage_btn)
@@ -86,6 +126,28 @@ class PreviewDashboard(QWidget):
         self.setLayout(main_layout)
 
         self.build_dashboard()
+
+    def go_back_to_import(self):
+
+        if self.back_to_import_callback:
+            self.back_to_import_callback()
+
+    def go_back_to_mapping(self):
+
+        if self.back_to_mapping_callback:
+            self.back_to_mapping_callback()
+
+    def go_back_to_filter(self):
+
+        if self.back_to_filter_callback:
+            self.back_to_filter_callback()
+
+    def closeEvent(self, event):
+
+        super().closeEvent(event)
+
+        if event.isAccepted() and self.on_close_callback:
+            self.on_close_callback()
 
     def build_dashboard(self):
 
@@ -138,6 +200,7 @@ class PreviewDashboard(QWidget):
             title.setStyleSheet(
                 "font-size:12pt; font-weight:bold; padding:4px;"
             )
+            title.setAlignment(Qt.AlignCenter)
             container_layout.addWidget(title)
 
             table = QTableWidget()
@@ -178,6 +241,8 @@ class PreviewDashboard(QWidget):
                             str(table_df.iat[row, col])
                         )
                     )
+                    if col in (0, 2):
+                        table.item(row, col).setTextAlignment(Qt.AlignCenter)
 
             table.resizeColumnsToContents()
 
@@ -281,14 +346,7 @@ class PreviewDashboard(QWidget):
         filters = {}
 
         for field in self.mapping:
-            filters[field] = (
-                self.df[self.mapping[field]]
-                .dropna()
-                .astype(str)
-                .str.strip()
-                .unique()
-                .tolist()
-            )
+            filters[field] = self.selected_filters.get(field, [])
 
         data = {
             "mapping": self.mapping,
@@ -339,6 +397,7 @@ class PreviewDashboard(QWidget):
         data = load_session(name)
 
         self.adjusted_total = data.get("adjusted_total")
+        self.selected_filters = data.get("filters", {})
 
         df = self.source_df.copy()
 

@@ -1,8 +1,10 @@
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel,
-    QComboBox, QPushButton, QMessageBox
+    QComboBox, QPushButton, QMessageBox, QHBoxLayout
 )
 
+from config import APP_ICON_PATH
 from gui.styles import WINDOW_STYLE, button_style
 
 
@@ -11,19 +13,40 @@ REQUIRED_FIELDS = ["Country", "Job Level", "Industry"]
 
 class ColumnMapper(QWidget):
 
-    def __init__(self, df, proceed_callback):
+    def __init__(
+        self,
+        df,
+        proceed_callback,
+        back_to_import_callback,
+        initial_mapping=None
+    ):
         super().__init__()
 
         self.df = df
         self.proceed_callback = proceed_callback
+        self.back_to_import_callback = back_to_import_callback
+        self.initial_mapping = initial_mapping or {}
+        self.on_close_callback = None
 
         self.setWindowTitle("Column Mapping")
         self.resize(300, 220)
         self.setStyleSheet(WINDOW_STYLE)
+        if APP_ICON_PATH.exists():
+            self.setWindowIcon(QIcon(str(APP_ICON_PATH)))
 
         layout = QVBoxLayout()
         layout.setSpacing(6)
         layout.setContentsMargins(8, 8, 8, 8)
+
+        nav_layout = QHBoxLayout()
+        nav_layout.addStretch()
+
+        self.back_to_import_btn = QPushButton("Back to Import")
+        self.back_to_import_btn.setStyleSheet(button_style("nav_import"))
+        self.back_to_import_btn.clicked.connect(self.go_back_to_import)
+        nav_layout.addWidget(self.back_to_import_btn)
+
+        layout.addLayout(nav_layout)
 
         self.dropdowns = {}
 
@@ -41,6 +64,9 @@ class ColumnMapper(QWidget):
             if auto_col:
                 combo.setCurrentText(auto_col)
 
+            if field in self.initial_mapping and self.initial_mapping[field] in columns:
+                combo.setCurrentText(self.initial_mapping[field])
+
             layout.addWidget(label)
             layout.addWidget(combo)
 
@@ -53,6 +79,17 @@ class ColumnMapper(QWidget):
         layout.addWidget(self.confirm_btn)
 
         self.setLayout(layout)
+
+    def go_back_to_import(self):
+
+        self.back_to_import_callback()
+
+    def closeEvent(self, event):
+
+        super().closeEvent(event)
+
+        if event.isAccepted() and self.on_close_callback:
+            self.on_close_callback()
 
     def auto_detect(self, field, columns):
 

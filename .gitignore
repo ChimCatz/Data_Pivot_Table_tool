@@ -7,10 +7,17 @@ __pycache__/
 build/
 dist/
 
+# runtime data
+sessions/*.json
+
 # installer / executables
 *.exe
 *.pkg
 *.msi
+
+# pyinstaller metadata
+*.manifest
+*.spec.bak
 
 # logs
 *.log

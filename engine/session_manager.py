@@ -1,12 +1,6 @@
 import json
 import os
-import sys
-
-
-if getattr(sys, 'frozen', False):
-    BASE_DIR = os.path.dirname(sys.executable)
-else:
-    BASE_DIR = os.getcwd()
+from config import BASE_DIR
 
 SESSION_FOLDER = os.path.join(BASE_DIR, "sessions")
 

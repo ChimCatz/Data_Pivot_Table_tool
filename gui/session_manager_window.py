@@ -1,3 +1,4 @@
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -8,6 +9,7 @@ from PySide6.QtWidgets import (
     QLabel
 )
 
+from config import APP_ICON_PATH
 from engine.session_manager import (
     list_sessions,
     delete_session,
@@ -26,6 +28,8 @@ class SessionManagerWindow(QWidget):
         self.setWindowTitle("Manage Sessions")
         self.setFixedSize(350, 400)
         self.setStyleSheet(WINDOW_STYLE)
+        if APP_ICON_PATH.exists():
+            self.setWindowIcon(QIcon(str(APP_ICON_PATH)))
 
         layout = QVBoxLayout()
 
